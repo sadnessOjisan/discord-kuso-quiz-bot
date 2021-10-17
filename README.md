@@ -8,6 +8,10 @@ rustup toolchain install beta
 cargo init --edition 2021
 ```
 
+Run
+
 ```
 cargo +beta run
 ```
+
+and open discord.
