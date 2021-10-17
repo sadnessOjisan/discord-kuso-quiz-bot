@@ -1,0 +1,11 @@
+[package]
+name = "discord-kuso-quiz-bot"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotenv = "0.15.0"
+serenity = "0.10.9"
+tokio = { version = "1.10.1", features = ["macros", "rt-multi-thread"] } # for `error: The default runtime flavor is `multi_thread`, but the `rt-multi-thread` feature is disabled.``
