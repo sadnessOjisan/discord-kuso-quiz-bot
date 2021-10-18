@@ -14,17 +14,24 @@ const quized = [
 ];
 
 let quizing = false;
+let waitingAnswer = false;
 
 client.on("messageCreate", async (msg) => {
+  console.info(`${msg.author.tag}がコマンドを送信しました: ${msg.content}`);
+  if (msg.author.tag === "kuso-quiz#1299") return;
   if (msg.content === "quiz!") {
     msg.channel.send("quizをスタートします");
     quizing = true;
   }
   if (quizing) {
-    msg.channel.send(quized.pop().title);
-    if (quized.length === 0) {
+    if (quized.length === 0 && !waitingAnswer) {
       msg.channel.send("quizを終了します");
       quizing = false;
+      return;
+    } else if (quized.length > 0) {
+      msg.channel.send(quized.pop().title);
+      waitingAnswer = true;
+      return;
     }
   }
 });
