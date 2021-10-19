@@ -9,7 +9,7 @@ use serenity::framework::standard::{
         group
     }
 };
-
+use std::collections::HashMap;
 use dotenv::dotenv;
 use std::env;
 
@@ -17,6 +17,35 @@ use std::env;
 struct General;
 
 struct Handler;
+
+struct Quiz {
+    id: i8,
+    content:String,
+    answer:String
+}
+
+struct Result {
+    quizId: i8,
+    isCorrect: bool,
+}
+
+struct QuizManager {
+    quizs: Vec<Quiz>,
+    currentQuiz: Quiz,
+    result: HashMap<i8, bool> // {[quizId]: bool}
+}
+
+impl QuizManager {
+    fn init(&mut self){
+        self.quizs = vec![
+            Quiz {
+                id: 1,
+                content: "aaa".to_string(),
+                answer: "bbb".to_string()
+            }
+        ]
+    }
+}
 
 #[async_trait]
 impl EventHandler for Handler {
