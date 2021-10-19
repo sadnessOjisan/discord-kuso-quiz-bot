@@ -16,14 +16,19 @@ use std::env;
 #[group]
 struct General;
 
-struct Handler;
+struct Handler {
+    manager: QuizManager
+}
 
+
+#[derive(Debug)]
 struct Quiz {
     id: i8,
     content:String,
     answer:String
 }
 
+#[derive(Debug)]
 struct QuizManager {
     quizs: Vec<Quiz>,
     currentQuiz: Option<Quiz>,
@@ -52,6 +57,8 @@ impl EventHandler for Handler {
             // authentication error, or lack of permissions to post in the
             // channel, so log to stdout when some error happens, with a
             // description of it.
+
+            println!("{:?}", &self.manager);
             
             if let Err(why) = msg.channel_id.say(&ctx.http, "Quiz を始めます").await {
                 println!("Error sending message: {:?}", why);
@@ -79,7 +86,7 @@ async fn main() {
     // Login with a bot token from the environment
     let token = env::var("DISCORD_TOKEN").expect("token");
     let mut client = Client::builder(token)
-        .event_handler(Handler)
+        .event_handler(Handler {manager: manager})
         .framework(framework)
         .await
         .expect("Error creating client");
