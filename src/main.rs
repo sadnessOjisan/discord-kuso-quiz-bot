@@ -24,14 +24,9 @@ struct Quiz {
     answer:String
 }
 
-struct Result {
-    quizId: i8,
-    isCorrect: bool,
-}
-
 struct QuizManager {
     quizs: Vec<Quiz>,
-    currentQuiz: Quiz,
+    currentQuiz: Option<Quiz>,
     result: HashMap<i8, bool> // {[quizId]: bool}
 }
 
@@ -45,17 +40,20 @@ impl QuizManager {
             }
         ]
     }
+
 }
+
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content == "!ping" {
+        if msg.content == "q!" {
             // Sending a message can fail, due to a network error, an
             // authentication error, or lack of permissions to post in the
             // channel, so log to stdout when some error happens, with a
             // description of it.
-            if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!").await {
+            
+            if let Err(why) = msg.channel_id.say(&ctx.http, "Quiz を始めます").await {
                 println!("Error sending message: {:?}", why);
             }
         }
@@ -68,6 +66,15 @@ async fn main() {
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
         .group(&GENERAL_GROUP);
+
+
+    let mut manager = QuizManager {
+        quizs: vec![],
+        currentQuiz: None,
+        result: HashMap::new()
+    };
+    
+    manager.init();
 
     // Login with a bot token from the environment
     let token = env::var("DISCORD_TOKEN").expect("token");
