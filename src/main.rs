@@ -1,55 +1,52 @@
-use serenity::async_trait;
-use serenity::client::{Client, Context, EventHandler};
-use serenity::model::channel::Message;
-use serenity::framework::standard::{
-    StandardFramework,
-    CommandResult,
-    macros::{
-        command,
-        group
-    }
-};
-
 use dotenv::dotenv;
 use std::env;
-
-#[group]
-struct General;
+use serenity::async_trait;
+use serenity::framework::standard::{
+  macros::{command, group},
+  Args, CommandResult, StandardFramework,
+};
+use serenity::model::{
+  channel::{Message, Reaction},
+  gateway::Ready,
+};
+use serenity::prelude::*;
 
 struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content == "!ping" {
-            // Sending a message can fail, due to a network error, an
-            // authentication error, or lack of permissions to post in the
-            // channel, so log to stdout when some error happens, with a
-            // description of it.
-            if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!").await {
-                println!("Error sending message: {:?}", why);
-            }
-        }
-    }
+  async fn ready(&self, _: Context, ready: Ready) {
+    println!("Bot ready with username {}", ready.user.name);
+  }
+}
+
+#[group]
+#[commands(ping)]
+struct General;
+
+#[command]
+async fn ping(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
+  msg.channel_id.say(&ctx.http, "Pong!").await?;
+
+  Ok(())
 }
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+    let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
+
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
-        .group(&GENERAL_GROUP);
+      .configure(|c| c.case_insensitivity(true))
+      .group(&GENERAL_GROUP);
 
-    // Login with a bot token from the environment
-    let token = env::var("DISCORD_TOKEN").expect("token");
-    let mut client = Client::builder(token)
-        .event_handler(Handler)
-        .framework(framework)
-        .await
-        .expect("Error creating client");
+    let mut client = Client::builder(&token)
+      .event_handler(Handler)
+      .framework(framework)
+      .await
+      .expect("Failed to build client");
 
-    // start listening for events by starting a single shard
     if let Err(why) = client.start().await {
-        println!("An error occurred while running the client: {:?}", why);
+      println!("Client error: {:?}", why);
     }
 }
