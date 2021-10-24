@@ -1,5 +1,7 @@
 use dotenv::dotenv;
+use std::collections::HashMap;
 use std::env;
+use std::sync::Arc;
 use serenity::async_trait;
 use serenity::framework::standard::{
   macros::{command, group},
@@ -24,10 +26,22 @@ impl EventHandler for Handler {
 #[commands(ping)]
 struct General;
 
+struct Data;
+
+impl TypeMapKey for Data {
+    type Value = Arc<Mutex<HashMap<u8, String>>>;
+  }
+
+
 #[command]
 async fn ping(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
+   let mut data = ctx.data.write().await;
+   let map = data.get_mut::<Data>().expect("Failed to retrieve map!");
+   let content = &msg.content;
+   map.lock().await.insert(0,  content.to_string()); // to_string() でコピーできる
+   println!("{:?}", map);
   msg.channel_id.say(&ctx.http, "Pong!").await?;
-
+  
   Ok(())
 }
 
@@ -43,6 +57,7 @@ async fn main() {
     let mut client = Client::builder(&token)
       .event_handler(Handler)
       .framework(framework)
+      .type_map_insert::<Data>(Arc::new(Mutex::new(HashMap::new()))) // new!
       .await
       .expect("Failed to build client");
 
