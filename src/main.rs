@@ -15,15 +15,21 @@ use serenity::prelude::*;
 
 struct Handler;
 
+type QuestionID = i8;
+
 #[derive(Debug)]
 struct Question {
-    id: u8,
-    content: String
+    id: QuestionID,
+    content: String,
+    answer: String
 }
+
 
 #[derive(Debug)]
 struct State {
-    questions:Vec<Question> 
+    questions:Vec<Question>,
+    result: HashMap<QuestionID, bool>,
+    cursor: Option<u8>
 }
 
 impl State {
@@ -31,13 +37,16 @@ impl State {
         self.questions = vec![
             Question {
                 id: 1,
-                content: "test".to_string()
+                content: "test".to_string(),
+                answer: "hoge".to_string()
             },
             Question {
                 id: 2,
-                content: "test2".to_string()
+                content: "test2".to_string(),
+                answer: "hoge2".to_string()
             }
-        ]
+        ];
+        self.cursor = Some(0)
     }
 }
 
@@ -49,10 +58,8 @@ impl EventHandler for Handler {
 }
 
 #[group]
-#[commands(ping)]
+#[commands(start)]
 struct General;
-
-struct Data;
 
 impl TypeMapKey for State {
     type Value = Arc<Mutex<State>>;
@@ -60,15 +67,17 @@ impl TypeMapKey for State {
 
 
 #[command]
-async fn ping(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
+async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
    let mut data = ctx.data.write().await;
    let map = data.get_mut::<State>().expect("Failed to retrieve map!");
-   let content = &msg.content;
    map.lock().await.init(); // to_string() でコピーできる
-   println!("{:?}", map);
-  msg.channel_id.say(&ctx.http, "Pong!").await?;
-  
-  Ok(())
+   println!("{:?}", map.lock().await);
+   msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
+   let txt = &map.lock().await.questions[0].content;
+   msg.channel_id.say(&ctx.http, txt).await?;
+   
+//    match map;
+   Ok(())
 }
 
 #[tokio::main]
@@ -80,14 +89,16 @@ async fn main() {
       .configure(|c| c.case_insensitivity(true))
       .group(&GENERAL_GROUP);
 
-      let initialState = State {
-          questions:vec![] 
+      let initial_state = State {
+          questions:vec![],
+          result: HashMap::new(),
+          cursor: None
       };
 
     let mut client = Client::builder(&token)
       .event_handler(Handler)
       .framework(framework)
-      .type_map_insert::<State>(Arc::new(Mutex::new(initialState))) // new!
+      .type_map_insert::<State>(Arc::new(Mutex::new(initial_state))) // new!
       .await
       .expect("Failed to build client");
 
