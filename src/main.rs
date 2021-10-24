@@ -9,7 +9,6 @@ use serenity::model::{
     gateway::Ready,
 };
 use serenity::prelude::*;
-use std::collections::linked_list::Cursor;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::{env, vec};
@@ -53,7 +52,7 @@ impl State {
                 answer: "hoge2".to_string(),
             },
         ];
-        self.cursor = None;
+        self.cursor = Some(0);
         self.mode = Mode::Questioning
     }
 
@@ -68,6 +67,32 @@ impl EventHandler for Handler {
     async fn ready(&self, _: Context, ready: Ready) {
         println!("Bot ready with username {}", ready.user.name);
     }
+
+    async fn message(&self, ctx: Context, msg: Message) {
+        let mut data = ctx.data.write().await;
+        let state = data.get_mut::<State>().expect("Failed to retrieve map!");
+        let current_state = &mut state.lock().await;
+
+        match &current_state.mode {
+            Mode::Questioning=>{
+
+            }
+            Mode::WaitingUserAnswer=>{
+                let cursor = &current_state.cursor;
+                match cursor {
+                    None => {}
+                    Some(v) => {
+                        let current_q = &current_state.questions[*v as usize];
+                        let current_q_answer = &current_q.answer; // どうしてこれは参照がいるのか
+                        let user_answer = msg.content;
+                        let result = current_q_answer.as_ref() == user_answer;
+                        current_state.result.insert(current_q.id, true);
+                    }
+                }
+            }
+        }
+    }
+
 }
 
 #[group]
@@ -83,21 +108,24 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
     let mut data = ctx.data.write().await;
     let map = data.get_mut::<State>().expect("Failed to retrieve map!");
     map.lock().await.init(); // to_string() でコピーできる
-    println!("{:?}", map.lock().await);
+    println!("{:?}", &map.lock().await.cursor);
     msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
     map.lock().await.nextQuestion();
-    match &map.lock().await.cursor {
+    let current_state = &map.lock().await;
+    match &current_state.cursor {
         None => {
             msg.channel_id
                 .say(&ctx.http, "初期化されていません")
                 .await?;
         }
         Some(v) => {
-            let currentQuestion = &map.lock().await.questions[*v as usize];
-            let txt = &currentQuestion.content;
+            let current_question = &current_state.questions[*v as usize];
+            let txt = &current_question.content;
+            println!("{:?}", &current_question);
             msg.channel_id.say(&ctx.http, txt).await?;
         }
     }
+    // println!("{:?}", &map.lock().await.cursor);
     Ok(())
 }
 
