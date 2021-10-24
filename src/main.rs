@@ -1,6 +1,6 @@
 use dotenv::dotenv;
 use std::collections::HashMap;
-use std::env;
+use std::{env, vec};
 use std::sync::Arc;
 use serenity::async_trait;
 use serenity::framework::standard::{
@@ -15,6 +15,32 @@ use serenity::prelude::*;
 
 struct Handler;
 
+#[derive(Debug)]
+struct Question {
+    id: u8,
+    content: String
+}
+
+#[derive(Debug)]
+struct State {
+    questions:Vec<Question> 
+}
+
+impl State {
+    fn init(&mut self){
+        self.questions = vec![
+            Question {
+                id: 1,
+                content: "test".to_string()
+            },
+            Question {
+                id: 2,
+                content: "test2".to_string()
+            }
+        ]
+    }
+}
+
 #[async_trait]
 impl EventHandler for Handler {
   async fn ready(&self, _: Context, ready: Ready) {
@@ -28,17 +54,17 @@ struct General;
 
 struct Data;
 
-impl TypeMapKey for Data {
-    type Value = Arc<Mutex<HashMap<u8, String>>>;
+impl TypeMapKey for State {
+    type Value = Arc<Mutex<State>>;
   }
 
 
 #[command]
 async fn ping(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
    let mut data = ctx.data.write().await;
-   let map = data.get_mut::<Data>().expect("Failed to retrieve map!");
+   let map = data.get_mut::<State>().expect("Failed to retrieve map!");
    let content = &msg.content;
-   map.lock().await.insert(0,  content.to_string()); // to_string() でコピーできる
+   map.lock().await.init(); // to_string() でコピーできる
    println!("{:?}", map);
   msg.channel_id.say(&ctx.http, "Pong!").await?;
   
@@ -54,10 +80,14 @@ async fn main() {
       .configure(|c| c.case_insensitivity(true))
       .group(&GENERAL_GROUP);
 
+      let initialState = State {
+          questions:vec![] 
+      };
+
     let mut client = Client::builder(&token)
       .event_handler(Handler)
       .framework(framework)
-      .type_map_insert::<Data>(Arc::new(Mutex::new(HashMap::new()))) // new!
+      .type_map_insert::<State>(Arc::new(Mutex::new(initialState))) // new!
       .await
       .expect("Failed to build client");
 
