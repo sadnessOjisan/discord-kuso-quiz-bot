@@ -1,14 +1,12 @@
 use dotenv::dotenv;
 use serenity::async_trait;
-use serenity::framework::standard::CommandError;
 use serenity::framework::standard::{
     macros::{command, group},
     Args, CommandResult, StandardFramework,
 };
 use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
-use std::collections::{HashMap, HashSet};
-use std::fmt::Error;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::vec;
 
@@ -86,7 +84,7 @@ impl BotState {
                 let current_quiz = state.questions[state.cursor as usize].clone();
                 let current_q_answer = current_quiz.answer;
                 let is_correct = current_q_answer == answer;
-                let mut current_result =state.result.clone();
+                let mut current_result = state.result.clone();
                 if is_correct {
                     current_result.insert(current_quiz.id);
                 }
@@ -121,14 +119,14 @@ impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let mut data = ctx.data.write().await;
         let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
-        let mut current_state =  bot_state.lock().await.clone();
+        let current_state = bot_state.lock().await.clone();
 
         match &current_state.mode {
-            Mode::WaitingUserAnswer(state) => {
+            Mode::WaitingUserAnswer(_) => {
                 let user_answer = msg.content;
                 current_state.user_answer(user_answer);
                 // Q: current_state.next_quiz(); user_answer を next_quiz() から呼ぶようにしたのでエラーを回避できたけど、本当にこれでいいのか？
-                let next_state =  &mut bot_state.lock().await;
+                let next_state = &mut bot_state.lock().await;
                 match &next_state.mode {
                     Mode::WaitingUserAnswer(state) => {
                         let current_quiz = &state.questions[state.cursor as usize].clone();
@@ -139,8 +137,13 @@ impl EventHandler for Handler {
                     }
                 }
             }
+            Mode::Error => {
+                msg.channel_id
+                .say(&ctx.http, "回答待ちではありません")
+                .await;
+            }
             _ => {
-                msg.channel_id.say(&ctx.http, "不正な状態です。").await;
+                println!("fail")
             }
         }
     }
@@ -164,9 +167,11 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
             let quiz = &current_question.content;
             msg.channel_id.say(&ctx.http, quiz).await?;
             Ok(())
-        },
+        }
         _ => {
-            msg.channel_id.say(&ctx.http, "クイズの初期化に失敗しました。").await?;
+            msg.channel_id
+                .say(&ctx.http, "クイズの初期化に失敗しました。")
+                .await?;
             Ok(()) // Q: Error を返したい
         }
     }
