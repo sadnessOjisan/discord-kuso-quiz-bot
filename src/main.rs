@@ -4,32 +4,27 @@ use serenity::framework::standard::{
     macros::{command, group},
     Args, CommandResult, StandardFramework,
 };
-use serenity::model::{
-    channel::{Message, Reaction},
-    gateway::Ready,
-};
+use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::{env, vec};
+use std::vec;
 
 struct Handler;
 
 type QuestionID = i8;
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Question {
     id: QuestionID,
     content: String,
     answer: String,
 }
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Mode {
     WaitingUserAnswer,
     Questioning,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct State {
     questions: Vec<Question>,
     result: HashMap<QuestionID, bool>,
@@ -56,7 +51,7 @@ impl State {
         self.mode = Mode::Questioning
     }
 
-    fn nextQuestion(&mut self) {
+    fn next_question(&mut self) {
         self.cursor = self.cursor.map(|v| v + 1);
         self.mode = Mode::WaitingUserAnswer
     }
@@ -74,25 +69,22 @@ impl EventHandler for Handler {
         let current_state = &mut state.lock().await;
 
         match &current_state.mode {
-            Mode::Questioning=>{
-
-            }
-            Mode::WaitingUserAnswer=>{
+            Mode::Questioning => {}
+            Mode::WaitingUserAnswer => {
                 let cursor = &current_state.cursor;
                 match cursor {
                     None => {}
                     Some(v) => {
-                        let current_q = &current_state.questions[*v as usize];
+                        let current_q = &current_state.questions[*v as usize].clone();
                         let current_q_answer = &current_q.answer; // どうしてこれは参照がいるのか
                         let user_answer = msg.content;
                         let result = current_q_answer.as_ref() == user_answer;
-                        current_state.result.insert(current_q.id, true);
+                        current_state.result.insert(current_q.id, result);
                     }
                 }
             }
         }
     }
-
 }
 
 #[group]
@@ -106,12 +98,12 @@ impl TypeMapKey for State {
 #[command]
 async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
     let mut data = ctx.data.write().await;
-    let map = data.get_mut::<State>().expect("Failed to retrieve map!");
-    map.lock().await.init(); // to_string() でコピーできる
-    println!("{:?}", &map.lock().await.cursor);
+    let state = data.get_mut::<State>().expect("Failed to retrieve map!");
+    state.lock().await.init();
+    println!("{:?}", &state.lock().await.cursor);
     msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
-    map.lock().await.nextQuestion();
-    let current_state = &map.lock().await;
+    state.lock().await.next_question();
+    let current_state = &state.lock().await;
     match &current_state.cursor {
         None => {
             msg.channel_id
