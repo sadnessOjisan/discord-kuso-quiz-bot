@@ -6,7 +6,7 @@ use serenity::framework::standard::{
 };
 use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::vec;
 
@@ -21,21 +21,28 @@ struct Question {
 }
 #[derive(Debug, Clone)]
 enum Mode {
-    WaitingUserAnswer,
-    Questioning,
+    Init,
+    WaitingUserAnswer(State),
+    Finish(State),
+    Error,
 }
+
 #[derive(Debug, Clone)]
-struct State {
-    questions: Vec<Question>,
-    result: HashMap<QuestionID, bool>,
-    cursor: Option<u8>,
+struct BotState {
     mode: Mode,
 }
 
-impl State {
-    fn init(&mut self) {
-        // & なくてよい？
-        self.questions = vec![
+impl TypeMapKey for BotState {
+    type Value = Arc<Mutex<BotState>>;
+}
+
+impl BotState {
+    fn new() -> BotState {
+        BotState { mode: Mode::Init }
+    }
+
+    fn initialize_quiz(&mut self) {
+        let questions = vec![
             Question {
                 id: 1,
                 content: "test".to_string(),
@@ -47,14 +54,82 @@ impl State {
                 answer: "hoge2".to_string(),
             },
         ];
-        self.cursor = Some(0);
-        self.mode = Mode::Questioning
+        let cursor = 0;
+        let result = HashSet::new();
+        self.mode = Mode::WaitingUserAnswer(State {
+            questions,
+            cursor,
+            result,
+        })
     }
 
-    fn next_question(&mut self) {
-        self.cursor = self.cursor.map(|v| v + 1);
-        self.mode = Mode::WaitingUserAnswer
+    fn next_quiz(&mut self) {
+        match &self.mode {
+            Mode::WaitingUserAnswer(state) => {
+                let next_cursor = state.cursor + 1;
+                let next_state = State {
+                    cursor: next_cursor,
+                    questions: state.questions.clone(), // Q: string は copy できないから clone するは正しいか
+                    result: state.result.clone(),
+                };
+                // Q: into できなかった
+                if next_cursor as usize == state.questions.len() {
+                    self.mode = Mode::Finish(next_state);
+                    return;
+                } else {
+                    self.mode = Mode::WaitingUserAnswer(next_state);
+                }
+            }
+            _ => {
+                self.mode = Mode::Error;
+            }
+        }
     }
+
+    fn update_result(&mut self, result: HashSet<QuestionID>) {
+        match &self.mode {
+            Mode::WaitingUserAnswer(state) => {
+                let next_state = State {
+                    cursor: state.cursor,
+                    questions: state.questions.clone(),
+                    result,
+                };
+                self.mode = Mode::WaitingUserAnswer(next_state)
+            }
+            _ => {
+                self.mode = Mode::Error;
+            }
+        }
+    }
+
+    fn user_answer(&mut self, answer: String) -> Option<bool> {
+        match &self.mode {
+            Mode::WaitingUserAnswer(state) => {
+                let current_quiz = state.questions[state.cursor as usize].clone();
+                let current_q_answer = current_quiz.answer;
+                let is_correct = current_q_answer == answer;
+                let mut current_result = state.result.clone();
+                if is_correct {
+                    current_result.insert(current_quiz.id);
+                }
+                // Q: この中から直接state.resultに上書きたい
+                self.update_result(current_result);
+                self.next_quiz();
+                Some(is_correct)
+            }
+            _ => {
+                self.mode = Mode::Error;
+                None
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct State {
+    questions: Vec<Question>,
+    result: HashSet<QuestionID>,
+    cursor: u8,
 }
 
 #[async_trait]
@@ -65,23 +140,54 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: Context, msg: Message) {
         let mut data = ctx.data.write().await;
-        let state = data.get_mut::<State>().expect("Failed to retrieve map!");
-        let current_state = &mut state.lock().await;
+        let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
+        let mut current_state = bot_state.lock().await;
+        if msg.author.name == "kuso-quiz" {
+            return;
+        }
 
         match &current_state.mode {
-            Mode::Questioning => {}
-            Mode::WaitingUserAnswer => {
-                let cursor = &current_state.cursor;
-                match cursor {
-                    None => {}
-                    Some(v) => {
-                        let current_q = &current_state.questions[*v as usize].clone();
-                        let current_q_answer = &current_q.answer; // どうしてこれは参照がいるのか
-                        let user_answer = msg.content;
-                        let result = current_q_answer.as_ref() == user_answer;
-                        current_state.result.insert(current_q.id, result);
+            Mode::WaitingUserAnswer(_) => {
+                let user_answer = msg.content;
+                let is_correct = current_state.user_answer(user_answer);
+                // Q: current_state.next_quiz(); user_answer を next_quiz() から呼ぶようにしたのでエラーを回避できたけど、本当にこれでいいのか？
+                if is_correct.is_none() {
+                    msg.channel_id.say(&ctx.http, "不正な状態です。").await;
+                    return;
+                }
+                if is_correct.unwrap() {
+                    msg.channel_id.say(&ctx.http, "正解です。").await;
+                } else {
+                    msg.channel_id.say(&ctx.http, "不正解です。").await;
+                }
+                // let next_state = &mut bot_state.lock().await;
+                // println!("next_state{:?}",next_state); 上でlockをとろうとするとここでコードが止まる。下にcurrent_state(=&mut bot_state.lock().await;)がいてライフタイムがあるからロックが取れないのだと思うけど、そういう競合のときってエラーとかで検知できないのか？try_lockはこういうときのためのもの？
+                match &current_state.mode {
+                    Mode::WaitingUserAnswer(state) => {
+                        let current_quiz = &state.questions[state.cursor as usize].clone();
+                        let res = msg.channel_id.say(&ctx.http, &current_quiz.content).await;
+                        if res.is_err() {
+                            println!("不正な状態です")
+                        }
+                    }
+                    Mode::Finish(state) => {
+                        let all_q_lens = &state.questions.len();
+                        let correct_list = &state.result.len();
+                        let txt = format!("{:?}問中{:?}正解です", all_q_lens, correct_list);
+                        msg.channel_id.say(&ctx.http, txt).await;
+                    }
+                    _ => {
+                        msg.channel_id.say(&ctx.http, "不正な状態です。").await;
                     }
                 }
+            }
+            Mode::Error => {
+                msg.channel_id
+                    .say(&ctx.http, "回答待ちではありません")
+                    .await;
+            }
+            _ => {
+                println!("fail")
             }
         }
     }
@@ -91,34 +197,28 @@ impl EventHandler for Handler {
 #[commands(start)]
 struct General;
 
-impl TypeMapKey for State {
-    type Value = Arc<Mutex<State>>;
-}
-
 #[command]
 async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
     let mut data = ctx.data.write().await;
-    let state = data.get_mut::<State>().expect("Failed to retrieve map!");
-    state.lock().await.init();
-    println!("{:?}", &state.lock().await.cursor);
+    let state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
+    state.lock().await.initialize_quiz();
     msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
-    state.lock().await.next_question();
     let current_state = &state.lock().await;
-    match &current_state.cursor {
-        None => {
-            msg.channel_id
-                .say(&ctx.http, "初期化されていません")
-                .await?;
+    match &current_state.mode {
+        Mode::WaitingUserAnswer(state) => {
+            let cursor = &state.cursor;
+            let current_question = &state.questions[*cursor as usize];
+            let quiz = &current_question.content;
+            msg.channel_id.say(&ctx.http, quiz).await?;
+            Ok(())
         }
-        Some(v) => {
-            let current_question = &current_state.questions[*v as usize];
-            let txt = &current_question.content;
-            println!("{:?}", &current_question);
-            msg.channel_id.say(&ctx.http, txt).await?;
+        _ => {
+            msg.channel_id
+                .say(&ctx.http, "クイズの初期化に失敗しました。")
+                .await?;
+            Ok(()) // Q: Error を返したい
         }
     }
-    // println!("{:?}", &map.lock().await.cursor);
-    Ok(())
 }
 
 #[tokio::main]
@@ -130,17 +230,12 @@ async fn main() {
         .configure(|c| c.case_insensitivity(true))
         .group(&GENERAL_GROUP);
 
-    let initial_state = State {
-        questions: vec![],
-        result: HashMap::new(),
-        cursor: None,
-        mode: Mode::Questioning,
-    };
+    let initial_state = BotState::new();
 
     let mut client = Client::builder(&token)
         .event_handler(Handler)
         .framework(framework)
-        .type_map_insert::<State>(Arc::new(Mutex::new(initial_state))) // new!
+        .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
         .await
         .expect("Failed to build client");
 
