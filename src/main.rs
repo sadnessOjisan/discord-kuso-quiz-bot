@@ -23,6 +23,7 @@ struct Question {
 enum Mode {
     Init,
     WaitingUserAnswer(State),
+    Finish(State),
     Error,
 }
 
@@ -65,12 +66,19 @@ impl BotState {
     fn next_quiz(&mut self) {
         match &self.mode {
             Mode::WaitingUserAnswer(state) => {
+                let next_cursor = state.cursor + 1;
                 let next_state = State {
-                    cursor: state.cursor + 1,
+                    cursor: next_cursor,
                     questions: state.questions.clone(), // Q: string は copy できないから clone するは正しいか
                     result: state.result.clone(),
                 };
-                self.mode = Mode::WaitingUserAnswer(next_state);
+                // Q: into できなかった
+                if next_cursor as usize == state.questions.len() {
+                    self.mode = Mode::Finish(next_state);
+                    return;
+                } else {
+                    self.mode = Mode::WaitingUserAnswer(next_state);
+                }
             }
             _ => {
                 self.mode = Mode::Error;
@@ -78,7 +86,23 @@ impl BotState {
         }
     }
 
-    fn user_answer(&mut self, answer: String) -> Option<bool>{
+    fn update_result(&mut self, result: HashSet<QuestionID>) {
+        match &self.mode {
+            Mode::WaitingUserAnswer(state) => {
+                let next_state = State {
+                    cursor: state.cursor,
+                    questions: state.questions.clone(),
+                    result,
+                };
+                self.mode = Mode::WaitingUserAnswer(next_state)
+            }
+            _ => {
+                self.mode = Mode::Error;
+            }
+        }
+    }
+
+    fn user_answer(&mut self, answer: String) -> Option<bool> {
         match &self.mode {
             Mode::WaitingUserAnswer(state) => {
                 let current_quiz = state.questions[state.cursor as usize].clone();
@@ -88,6 +112,8 @@ impl BotState {
                 if is_correct {
                     current_result.insert(current_quiz.id);
                 }
+                // Q: この中から直接state.resultに上書きたい
+                self.update_result(current_result);
                 self.next_quiz();
                 Some(is_correct)
             }
@@ -116,32 +142,39 @@ impl EventHandler for Handler {
         let mut data = ctx.data.write().await;
         let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
         let mut current_state = bot_state.lock().await;
-        println!("current_state{:?}",current_state);
         if msg.author.name == "kuso-quiz" {
-            return
+            return;
         }
 
         match &current_state.mode {
             Mode::WaitingUserAnswer(_) => {
                 let user_answer = msg.content;
                 let is_correct = current_state.user_answer(user_answer);
+                // Q: current_state.next_quiz(); user_answer を next_quiz() から呼ぶようにしたのでエラーを回避できたけど、本当にこれでいいのか？
                 if is_correct.is_none() {
                     msg.channel_id.say(&ctx.http, "不正な状態です。").await;
-                    return
+                    return;
                 }
                 if is_correct.unwrap() {
                     msg.channel_id.say(&ctx.http, "正解です。").await;
                 } else {
                     msg.channel_id.say(&ctx.http, "不正解です。").await;
                 }
-                // Q: current_state.next_quiz(); user_answer を next_quiz() から呼ぶようにしたのでエラーを回避できたけど、本当にこれでいいのか？
+                // let next_state = &mut bot_state.lock().await;
+                // println!("next_state{:?}",next_state); 上でlockをとろうとするとここでコードが止まる。下にcurrent_state(=&mut bot_state.lock().await;)がいてライフタイムがあるからロックが取れないのだと思うけど、そういう競合のときってエラーとかで検知できないのか？try_lockはこういうときのためのもの？
                 match &current_state.mode {
                     Mode::WaitingUserAnswer(state) => {
                         let current_quiz = &state.questions[state.cursor as usize].clone();
-                        let res  = msg.channel_id.say(&ctx.http, &current_quiz.content).await;
+                        let res = msg.channel_id.say(&ctx.http, &current_quiz.content).await;
                         if res.is_err() {
                             println!("不正な状態です")
                         }
+                    }
+                    Mode::Finish(state) => {
+                        let all_q_lens = &state.questions.len();
+                        let correct_list = &state.result.len();
+                        let txt = format!("{:?}問中{:?}正解です", all_q_lens, correct_list);
+                        msg.channel_id.say(&ctx.http, txt).await;
                     }
                     _ => {
                         msg.channel_id.say(&ctx.http, "不正な状態です。").await;
@@ -150,8 +183,8 @@ impl EventHandler for Handler {
             }
             Mode::Error => {
                 msg.channel_id
-                .say(&ctx.http, "回答待ちではありません")
-                .await;
+                    .say(&ctx.http, "回答待ちではありません")
+                    .await;
             }
             _ => {
                 println!("fail")
