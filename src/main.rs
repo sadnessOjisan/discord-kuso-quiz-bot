@@ -78,7 +78,7 @@ impl BotState {
         }
     }
 
-    fn user_answer(mut self, answer: String) -> Option<bool>{
+    fn user_answer(&mut self, answer: String) -> Option<bool>{
         match &self.mode {
             Mode::WaitingUserAnswer(state) => {
                 let current_quiz = state.questions[state.cursor as usize].clone();
@@ -88,12 +88,6 @@ impl BotState {
                 if is_correct {
                     current_result.insert(current_quiz.id);
                 }
-                let next_state = State {
-                    cursor: state.cursor + 1,
-                    questions: state.questions.clone(), // Q: string は copy できないから clone するは正しいか
-                    result: current_result,
-                };
-                self.mode = Mode::WaitingUserAnswer(next_state);
                 self.next_quiz();
                 Some(is_correct)
             }
@@ -121,8 +115,8 @@ impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let mut data = ctx.data.write().await;
         let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
-        let current_state = bot_state.lock().await.clone();
-
+        let mut current_state = bot_state.lock().await;
+        println!("current_state{:?}",current_state);
         if msg.author.name == "kuso-quiz" {
             return
         }
@@ -141,8 +135,7 @@ impl EventHandler for Handler {
                     msg.channel_id.say(&ctx.http, "不正解です。").await;
                 }
                 // Q: current_state.next_quiz(); user_answer を next_quiz() から呼ぶようにしたのでエラーを回避できたけど、本当にこれでいいのか？
-                let next_state = &mut bot_state.lock().await;
-                match &next_state.mode {
+                match &current_state.mode {
                     Mode::WaitingUserAnswer(state) => {
                         let current_quiz = &state.questions[state.cursor as usize].clone();
                         let res  = msg.channel_id.say(&ctx.http, &current_quiz.content).await;
