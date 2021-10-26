@@ -78,7 +78,7 @@ impl BotState {
         }
     }
 
-    fn user_answer(mut self, answer: String) {
+    fn user_answer(mut self, answer: String) -> Option<bool>{
         match &self.mode {
             Mode::WaitingUserAnswer(state) => {
                 let current_quiz = state.questions[state.cursor as usize].clone();
@@ -94,10 +94,12 @@ impl BotState {
                     result: current_result,
                 };
                 self.mode = Mode::WaitingUserAnswer(next_state);
-                self.next_quiz()
+                self.next_quiz();
+                Some(is_correct)
             }
             _ => {
                 self.mode = Mode::Error;
+                None
             }
         }
     }
@@ -121,16 +123,32 @@ impl EventHandler for Handler {
         let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
         let current_state = bot_state.lock().await.clone();
 
+        if msg.author.name == "kuso-quiz" {
+            return
+        }
+
         match &current_state.mode {
             Mode::WaitingUserAnswer(_) => {
                 let user_answer = msg.content;
-                current_state.user_answer(user_answer);
+                let is_correct = current_state.user_answer(user_answer);
+                if is_correct.is_none() {
+                    msg.channel_id.say(&ctx.http, "不正な状態です。").await;
+                    return
+                }
+                if is_correct.unwrap() {
+                    msg.channel_id.say(&ctx.http, "正解です。").await;
+                } else {
+                    msg.channel_id.say(&ctx.http, "不正解です。").await;
+                }
                 // Q: current_state.next_quiz(); user_answer を next_quiz() から呼ぶようにしたのでエラーを回避できたけど、本当にこれでいいのか？
                 let next_state = &mut bot_state.lock().await;
                 match &next_state.mode {
                     Mode::WaitingUserAnswer(state) => {
                         let current_quiz = &state.questions[state.cursor as usize].clone();
-                        msg.channel_id.say(&ctx.http, &current_quiz.content).await;
+                        let res  = msg.channel_id.say(&ctx.http, &current_quiz.content).await;
+                        if res.is_err() {
+                            println!("不正な状態です")
+                        }
                     }
                     _ => {
                         msg.channel_id.say(&ctx.http, "不正な状態です。").await;
