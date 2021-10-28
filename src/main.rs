@@ -8,7 +8,7 @@ use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::vec;
+use std::{thread, vec};
 
 struct Handler;
 
@@ -224,22 +224,26 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
 
-    let framework = StandardFramework::new()
-        .configure(|c| c.case_insensitivity(true))
-        .group(&GENERAL_GROUP);
+    loop {
+        let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
+        tokio::spawn(async move {
+            let framework = StandardFramework::new()
+                .configure(|c| c.case_insensitivity(true))
+                .group(&GENERAL_GROUP);
 
-    let initial_state = BotState::new();
+            let initial_state = BotState::new();
 
-    let mut client = Client::builder(&token)
-        .event_handler(Handler)
-        .framework(framework)
-        .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
-        .await
-        .expect("Failed to build client");
+            let mut client = Client::builder(&token)
+                .event_handler(Handler)
+                .framework(framework)
+                .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
+                .await
+                .expect("Failed to build client");
 
-    if let Err(why) = client.start().await {
-        println!("Client error: {:?}", why);
+            if let Err(why) = client.start().await {
+                println!("Client error: {:?}", why);
+            }
+        });
     }
 }
