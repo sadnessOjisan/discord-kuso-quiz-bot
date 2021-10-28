@@ -225,25 +225,23 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
 async fn main() {
     dotenv().ok();
 
-    loop {
+    thread::spawn(move || async {
         let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
-        tokio::spawn(async move {
-            let framework = StandardFramework::new()
-                .configure(|c| c.case_insensitivity(true))
-                .group(&GENERAL_GROUP);
+        let framework = StandardFramework::new()
+            .configure(|c| c.case_insensitivity(true))
+            .group(&GENERAL_GROUP);
 
-            let initial_state = BotState::new();
+        let initial_state = BotState::new();
 
-            let mut client = Client::builder(&token)
-                .event_handler(Handler)
-                .framework(framework)
-                .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
-                .await
-                .expect("Failed to build client");
+        let mut client = Client::builder(&token)
+            .event_handler(Handler)
+            .framework(framework)
+            .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
+            .await
+            .expect("Failed to build client");
 
-            if let Err(why) = client.start().await {
-                println!("Client error: {:?}", why);
-            }
-        });
-    }
+        if let Err(why) = client.start().await {
+            println!("Client error: {:?}", why);
+        }
+    });
 }
