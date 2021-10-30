@@ -53,6 +53,22 @@ task.await;
 
 ```
 
+### mpsc::channel を async ブロック内で定義すると怒られる
+
+```
+type inside `async` block must be known in this context
+cannot infer type for type parameter `T` declared on the function `channel`rustcE0698
+```
+
+ジェネリクスがないからなのだが、サンプルコードは動いていそう。
+
+### :: の意味がよく分からない
+
+module を辿っているのはわかるがジェネリクスの指定もそうなっていて、そういうものか？と言う気持ち
+
+- ` .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state)))`
+- ` let (tx, mut rx) = mpsc::channel::<String>(32);`
+
 ## memo
 
 -

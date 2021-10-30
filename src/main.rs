@@ -9,9 +9,11 @@ use serenity::prelude::*;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::vec;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, Sender};
 
-struct Handler;
+struct Handler {
+    s: Sender<String>,
+}
 
 type QuestionID = i8;
 #[derive(Debug, Clone)]
@@ -147,6 +149,8 @@ impl EventHandler for Handler {
             return;
         }
 
+        let a = self.s.send("aaaa".to_string()).await;
+
         match &current_state.mode {
             Mode::WaitingUserAnswer(_) => {
                 let user_answer = msg.content;
@@ -226,25 +230,23 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
 async fn main() {
     dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
+    let (tx, mut rx) = mpsc::channel::<String>(32);
+    let framework = StandardFramework::new()
+        .configure(|c| c.case_insensitivity(true))
+        .group(&GENERAL_GROUP);
 
-    let task= tokio::spawn(async move {
-        let framework = StandardFramework::new()
-            .configure(|c| c.case_insensitivity(true))
-            .group(&GENERAL_GROUP);
+    let initial_state = BotState::new();
+    let mut client = Client::builder(&token)
+        .event_handler(Handler { s: tx })
+        .framework(framework)
+        .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
+        .await
+        .expect("Failed to build client");
 
-        let initial_state = BotState::new();
-        let mut client = Client::builder(&token)
-            .event_handler(Handler)
-            .framework(framework)
-            .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
-            .await
-            .expect("Failed to build client");
-
-        if let Err(why) = client.start().await {
-            println!("Client error: {:?}", why);
-        }
-    });
-
-    task.await;
-
+    if let Err(why) = client.start().await {
+        println!("Client error: {:?}", why);
+    }
+    while let Some(message) = rx.recv().await {
+        println!("GOT = {}", message);
+    }
 }
