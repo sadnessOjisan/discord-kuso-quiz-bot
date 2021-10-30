@@ -4,17 +4,16 @@ use serenity::framework::standard::{
     macros::{command, group},
     Args, CommandResult, StandardFramework,
 };
+use serenity::model::id::ChannelId;
 use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::vec;
-use tokio::sync::mpsc::{self, Sender};
 
-struct Handler {
-    s: Sender<String>,
-}
+struct Handler;
 
+// Q: opaque なら pub struct ChannelId(pub u64); 的な書き方？  
 type QuestionID = i8;
 #[derive(Debug, Clone)]
 struct Question {
@@ -35,8 +34,18 @@ struct BotState {
     mode: Mode,
 }
 
-impl TypeMapKey for BotState {
-    type Value = Arc<Mutex<BotState>>;
+struct AllBotState {
+    states: HashMap<ChannelId, BotState>
+}
+
+impl TypeMapKey for AllBotState {
+    type Value = Arc<Mutex<AllBotState>>;
+}
+
+impl AllBotState {
+    fn new() -> AllBotState {
+        AllBotState { states: HashMap::new() }
+    }
 }
 
 impl BotState {
@@ -142,15 +151,16 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
-        let mut data = ctx.data.write().await;
-        let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
-        let mut current_state = bot_state.lock().await;
         if msg.author.name == "kuso-quiz" {
             return;
         }
+        
+        let channelId = msg.channel_id;
+        let mut data = ctx.data.write().await;
+        let state = data.get_mut::<AllBotState>().expect("Failed to retrieve map!").lock().await;
+        let bot_state= state.states.get(&channelId);
 
-        let a = self.s.send("aaaa".to_string()).await;
-
+        let current_state = bot_state.unwrap();
         match &current_state.mode {
             Mode::WaitingUserAnswer(_) => {
                 let user_answer = msg.content;
@@ -204,11 +214,20 @@ struct General;
 
 #[command]
 async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
+    let channelId = msg.channel_id;
     let mut data = ctx.data.write().await;
-    let state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
-    state.lock().await.initialize_quiz();
+    let state = data.get_mut::<AllBotState>().expect("Failed to retrieve map!").lock().await;
+    let bot_state= state.states.get(&channelId);
+    if bot_state.is_none(){
+       let initial_state = BotState {
+            mode: Mode::Init
+        };
+        initial_state.initialize_quiz();
+        state.states.insert(channelId, initial_state);
+    };
+    let bot_state= state.states.get(&channelId).unwrap();
     msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
-    let current_state = &state.lock().await;
+    let current_state = bot_state;
     match &current_state.mode {
         Mode::WaitingUserAnswer(state) => {
             let cursor = &state.cursor;
@@ -230,23 +249,22 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
 async fn main() {
     dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
-    let (tx, mut rx) = mpsc::channel::<String>(32);
+
     let framework = StandardFramework::new()
         .configure(|c| c.case_insensitivity(true))
         .group(&GENERAL_GROUP);
 
-    let initial_state = BotState::new();
+    let initial_state = AllBotState::new();
+
     let mut client = Client::builder(&token)
-        .event_handler(Handler { s: tx })
+        .event_handler(Handler)
         .framework(framework)
-        .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
+        .type_map_insert::<AllBotState>(Arc::new(Mutex::new(initial_state))) // new!
         .await
         .expect("Failed to build client");
 
+
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
-    }
-    while let Some(message) = rx.recv().await {
-        println!("GOT = {}", message);
     }
 }
