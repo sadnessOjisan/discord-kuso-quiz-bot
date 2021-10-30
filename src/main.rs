@@ -8,7 +8,8 @@ use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::{thread, vec};
+use std::vec;
+use tokio::sync::mpsc;
 
 struct Handler;
 
@@ -224,15 +225,14 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+    let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
 
-    thread::spawn(move || async {
-        let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
+    let task= tokio::spawn(async move {
         let framework = StandardFramework::new()
             .configure(|c| c.case_insensitivity(true))
             .group(&GENERAL_GROUP);
 
         let initial_state = BotState::new();
-
         let mut client = Client::builder(&token)
             .event_handler(Handler)
             .framework(framework)
@@ -244,4 +244,7 @@ async fn main() {
             println!("Client error: {:?}", why);
         }
     });
+
+    task.await;
+
 }
