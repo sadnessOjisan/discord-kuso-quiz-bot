@@ -126,6 +126,7 @@ impl BotState {
                 if is_correct {
                     current_result.insert(current_quiz.id);
                 }
+                println!("{:?}", current_result);
                 // Q: この中から直接state.resultに上書きたい
                 self.update_result(current_result);
                 self.next_quiz();
@@ -172,7 +173,6 @@ impl EventHandler for Handler {
             .lock()
             .await;
 
-        // Q: 実体を返さないから可変にできないってこと？
         let current_state = state.states.get_mut(&channelId).unwrap();
         match &current_state.mode {
             Mode::WaitingUserAnswer(_) => {
@@ -227,21 +227,21 @@ struct General;
 
 #[command]
 async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
-    let channelId = msg.channel_id;
+    let channel_id = msg.channel_id;
     let mut data = ctx.data.write().await;
     let mut state = data
         .get_mut::<AllBotState>()
         .expect("Failed to retrieve map!")
         .lock()
         .await;
-    let bot_state = state.states.get(&channelId);
+    let bot_state = state.states.get(&channel_id);
     if bot_state.is_none() {
         let mut initial_state = BotState { mode: Mode::Init };
         initial_state.initialize_quiz();
-        state.states.insert(channelId, initial_state);
+        state.states.insert(channel_id, initial_state);
     };
 
-    let bot_state = state.states.get(&channelId).unwrap();
+    let bot_state = state.states.get(&channel_id).unwrap();
     msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
     let current_state = bot_state;
     match &current_state.mode {
