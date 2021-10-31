@@ -46,7 +46,7 @@ impl BotState {
         BotState { mode: Mode::Init }
     }
 
-    pub   fn initialize_quiz(&mut self) {
+    pub fn initialize_quiz(&mut self) {
         let questions = vec![
             Question {
                 id: 1,

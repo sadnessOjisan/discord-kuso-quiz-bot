@@ -38,13 +38,22 @@ impl EventHandler for Handler {
                 let is_correct = current_state.user_answer(user_answer);
                 // Q: current_state.next_quiz(); user_answer を next_quiz() から呼ぶようにしたのでエラーを回避できたけど、本当にこれでいいのか？
                 if is_correct.is_none() {
-                    msg.channel_id.say(&ctx.http, "不正な状態です。").await.expect("fail send message");
+                    msg.channel_id
+                        .say(&ctx.http, "不正な状態です。")
+                        .await
+                        .expect("fail send message");
                     return;
                 }
                 if is_correct.unwrap() {
-                    msg.channel_id.say(&ctx.http, "正解です。").await.expect("fail send message");
+                    msg.channel_id
+                        .say(&ctx.http, "正解です。")
+                        .await
+                        .expect("fail send message");
                 } else {
-                    msg.channel_id.say(&ctx.http, "不正解です。").await.expect("fail send message");
+                    msg.channel_id
+                        .say(&ctx.http, "不正解です。")
+                        .await
+                        .expect("fail send message");
                 }
                 // let next_state = &mut bot_state.lock().await;
                 // println!("next_state{:?}",next_state); 上でlockをとろうとするとここでコードが止まる。下にcurrent_state(=&mut bot_state.lock().await;)がいてライフタイムがあるからロックが取れないのだと思うけど、そういう競合のときってエラーとかで検知できないのか？try_lockはこういうときのためのもの？
@@ -60,17 +69,24 @@ impl EventHandler for Handler {
                         let all_q_lens = &state.questions.len();
                         let correct_list = &state.result.len();
                         let txt = format!("{:?}問中{:?}正解です", all_q_lens, correct_list);
-                        msg.channel_id.say(&ctx.http, txt).await.expect("fail send message");
+                        msg.channel_id
+                            .say(&ctx.http, txt)
+                            .await
+                            .expect("fail send message");
                     }
                     _ => {
-                        msg.channel_id.say(&ctx.http, "不正な状態です。").await.expect("fail send message");
+                        msg.channel_id
+                            .say(&ctx.http, "不正な状態です。")
+                            .await
+                            .expect("fail send message");
                     }
                 }
             }
             Mode::Error => {
-             msg.channel_id
+                msg.channel_id
                     .say(&ctx.http, "回答待ちではありません")
-                    .await.expect("fail send message");
+                    .await
+                    .expect("fail send message");
             }
             _ => {
                 println!("fail")
