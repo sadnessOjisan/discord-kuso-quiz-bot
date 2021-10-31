@@ -117,7 +117,6 @@ impl BotState {
                 if is_correct {
                     current_result.insert(current_quiz.id);
                 }
-                println!("{:?}", current_result);
                 // Q: この中から直接state.resultに上書きたい
                 self.update_result(current_result);
                 self.next_quiz();
