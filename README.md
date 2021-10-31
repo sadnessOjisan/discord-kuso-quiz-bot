@@ -22,7 +22,7 @@ and open discord.
 
 ### dereference と Copy の関係
 
-ごまかそうとして reference しようとすると Copy を要求される。String が混じっているとできない。
+ごまかそうとして dereference しようとすると Copy を要求される。String が混じっているとできない。
 
 ### :: の意味がよく分からない
 

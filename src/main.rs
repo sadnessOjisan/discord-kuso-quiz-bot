@@ -166,13 +166,14 @@ impl EventHandler for Handler {
 
         let channelId = msg.channel_id;
         let mut data = ctx.data.write().await;
-        let state = data
+        let mut state = data
             .get_mut::<AllBotState>()
             .expect("Failed to retrieve map!")
             .lock()
             .await;
+
         // Q: 実体を返さないから可変にできないってこと？
-        let current_state = state.states.get(&channelId).unwrap();
+        let current_state = state.states.get_mut(&channelId).unwrap();
         match &current_state.mode {
             Mode::WaitingUserAnswer(_) => {
                 let user_answer = msg.content;
@@ -239,6 +240,7 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
         initial_state.initialize_quiz();
         state.states.insert(channelId, initial_state);
     };
+
     let bot_state = state.states.get(&channelId).unwrap();
     msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
     let current_state = bot_state;
