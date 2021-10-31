@@ -13,7 +13,7 @@ use std::vec;
 
 struct Handler;
 
-// Q: opaque なら pub struct ChannelId(pub u64); 的な書き方？  
+// Q: opaque なら pub struct ChannelId(pub u64); 的な書き方？
 type QuestionID = i8;
 #[derive(Debug, Clone)]
 struct Question {
@@ -35,7 +35,7 @@ struct BotState {
 }
 
 struct AllBotState {
-    states: HashMap<ChannelId, BotState>
+    states: HashMap<ChannelId, BotState>,
 }
 
 impl TypeMapKey for AllBotState {
@@ -44,7 +44,9 @@ impl TypeMapKey for AllBotState {
 
 impl AllBotState {
     fn new() -> AllBotState {
-        AllBotState { states: HashMap::new() }
+        AllBotState {
+            states: HashMap::new(),
+        }
     }
 }
 
@@ -154,13 +156,23 @@ impl EventHandler for Handler {
         if msg.author.name == "kuso-quiz" {
             return;
         }
-        
+
+        // let mut data = ctx.data.write().await;
+        // let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
+        // let mut current_state = bot_state.lock().await;
+        // if msg.author.name == "kuso-quiz" {
+        //     return;
+        // }
+
         let channelId = msg.channel_id;
         let mut data = ctx.data.write().await;
-        let state = data.get_mut::<AllBotState>().expect("Failed to retrieve map!").lock().await;
-        let bot_state= state.states.get(&channelId);
-
-        let current_state = bot_state.unwrap();
+        let state = data
+            .get_mut::<AllBotState>()
+            .expect("Failed to retrieve map!")
+            .lock()
+            .await;
+        // Q: 実体を返さないから可変にできないってこと？
+        let current_state = state.states.get(&channelId).unwrap();
         match &current_state.mode {
             Mode::WaitingUserAnswer(_) => {
                 let user_answer = msg.content;
@@ -216,16 +228,18 @@ struct General;
 async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
     let channelId = msg.channel_id;
     let mut data = ctx.data.write().await;
-    let state = data.get_mut::<AllBotState>().expect("Failed to retrieve map!").lock().await;
-    let bot_state= state.states.get(&channelId);
-    if bot_state.is_none(){
-       let initial_state = BotState {
-            mode: Mode::Init
-        };
+    let mut state = data
+        .get_mut::<AllBotState>()
+        .expect("Failed to retrieve map!")
+        .lock()
+        .await;
+    let bot_state = state.states.get(&channelId);
+    if bot_state.is_none() {
+        let mut initial_state = BotState { mode: Mode::Init };
         initial_state.initialize_quiz();
         state.states.insert(channelId, initial_state);
     };
-    let bot_state= state.states.get(&channelId).unwrap();
+    let bot_state = state.states.get(&channelId).unwrap();
     msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
     let current_state = bot_state;
     match &current_state.mode {
@@ -262,7 +276,6 @@ async fn main() {
         .type_map_insert::<AllBotState>(Arc::new(Mutex::new(initial_state))) // new!
         .await
         .expect("Failed to build client");
-
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);

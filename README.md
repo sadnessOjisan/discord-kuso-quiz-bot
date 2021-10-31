@@ -20,47 +20,9 @@ and open discord.
 
 ### tokio そのものってマルチスレッド + event loop の合わせ技ってこと？
 
-### チャンネルの数だけ spawn したい
+### dereference と Copy の関係
 
-各チャンネルが、各タスクで動くイベントループとやりとりするイメージ
-
-単純にこう書くと、
-
-```rust
-let task = tokio::spawn(async move {
-   let framework = StandardFramework::new()
-       .configure(|c| c.case_insensitivity(true))
-       .group(&GENERAL_GROUP);
-   let initial_state = BotState::new();
-   let mut client = Client::builder(&token)
-       .event_handler(Handler)
-       .framework(framework)
-       .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
-       .await
-       .expect("Failed to build client");
-   if let Err(why) = client.start().await {
-       println!("Client error: {:?}", why);
-   }
-});
-task.await;
-```
-
-チャンネルの追加と spawn されたタスクが紐づかない
-
-もしかして、
-
-```rust
-
-```
-
-### mpsc::channel を async ブロック内で定義すると怒られる
-
-```
-type inside `async` block must be known in this context
-cannot infer type for type parameter `T` declared on the function `channel`rustcE0698
-```
-
-ジェネリクスがないからなのだが、サンプルコードは動いていそう。
+ごまかそうとして reference しようとすると Copy を要求される。String が混じっているとできない。
 
 ### :: の意味がよく分からない
 
