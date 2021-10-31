@@ -4,13 +4,18 @@ use serenity::framework::standard::{
     macros::{command, group},
     Args, CommandResult, StandardFramework,
 };
+use serenity::futures::channel::mpsc;
+use serenity::futures::lock::Mutex;
 use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::vec;
+use std::vec; // module に path の名前を持ち込む
+
+use discord_kuso_quiz_bot::quiz::{ChannelState};
 
 struct Handler;
+
 
 type QuestionID = i8;
 #[derive(Debug, Clone)]
@@ -139,6 +144,25 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
+       let s = self.data.sender;
+     
+       if channel {
+        let (tx, rx)=mpsc::channel(32);
+       }else{
+        state.setSender(tx)
+      
+  
+       }
+        // quizが起動していないとき
+       tokio::spawn(||{
+           loop {
+               receiv()
+           }
+ receiv(msg)
+        let quizState = ChannelState::new();
+        msg === quizstate
+        });
+
         let mut data = ctx.data.write().await;
         let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
         let mut current_state = bot_state.lock().await;
@@ -221,21 +245,29 @@ async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
     }
 }
 
+
+            BotState {
+                channelId: stinrg,
+                sender: SEnder,
+            }
+
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+// cannel id と sender をmainでもつ
+  dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
 
     let framework = StandardFramework::new()
         .configure(|c| c.case_insensitivity(true))
         .group(&GENERAL_GROUP);
+   
+     
 
-    let initial_state = BotState::new();
 
     let mut client = Client::builder(&token)
         .event_handler(Handler)
         .framework(framework)
-        .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
+        .type_map_insert::<BtoState>(Arc::new(Mutex::new(channel_state))) // new!
         .await
         .expect("Failed to build client");
 
