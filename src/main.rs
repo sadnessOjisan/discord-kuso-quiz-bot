@@ -4,14 +4,16 @@ use serenity::framework::standard::{
     macros::{command, group},
     Args, CommandResult, StandardFramework,
 };
+use serenity::model::id::ChannelId;
 use serenity::model::{channel::Message, gateway::Ready};
 use serenity::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::vec;
 
 struct Handler;
 
+// Q: opaque なら pub struct ChannelId(pub u64); 的な書き方？
 type QuestionID = i8;
 #[derive(Debug, Clone)]
 struct Question {
@@ -32,8 +34,20 @@ struct BotState {
     mode: Mode,
 }
 
-impl TypeMapKey for BotState {
-    type Value = Arc<Mutex<BotState>>;
+struct AllBotState {
+    states: HashMap<ChannelId, BotState>,
+}
+
+impl TypeMapKey for AllBotState {
+    type Value = Arc<Mutex<AllBotState>>;
+}
+
+impl AllBotState {
+    fn new() -> AllBotState {
+        AllBotState {
+            states: HashMap::new(),
+        }
+    }
 }
 
 impl BotState {
@@ -112,6 +126,7 @@ impl BotState {
                 if is_correct {
                     current_result.insert(current_quiz.id);
                 }
+                println!("{:?}", current_result);
                 // Q: この中から直接state.resultに上書きたい
                 self.update_result(current_result);
                 self.next_quiz();
@@ -139,13 +154,26 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
-        let mut data = ctx.data.write().await;
-        let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
-        let mut current_state = bot_state.lock().await;
         if msg.author.name == "kuso-quiz" {
             return;
         }
 
+        // let mut data = ctx.data.write().await;
+        // let bot_state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
+        // let mut current_state = bot_state.lock().await;
+        // if msg.author.name == "kuso-quiz" {
+        //     return;
+        // }
+
+        let channelId = msg.channel_id;
+        let mut data = ctx.data.write().await;
+        let mut state = data
+            .get_mut::<AllBotState>()
+            .expect("Failed to retrieve map!")
+            .lock()
+            .await;
+
+        let current_state = state.states.get_mut(&channelId).unwrap();
         match &current_state.mode {
             Mode::WaitingUserAnswer(_) => {
                 let user_answer = msg.content;
@@ -199,11 +227,23 @@ struct General;
 
 #[command]
 async fn start(ctx: &Context, msg: &Message, mut _args: Args) -> CommandResult {
+    let channel_id = msg.channel_id;
     let mut data = ctx.data.write().await;
-    let state = data.get_mut::<BotState>().expect("Failed to retrieve map!");
-    state.lock().await.initialize_quiz();
+    let mut state = data
+        .get_mut::<AllBotState>()
+        .expect("Failed to retrieve map!")
+        .lock()
+        .await;
+    let bot_state = state.states.get(&channel_id);
+    if bot_state.is_none() {
+        let mut initial_state = BotState { mode: Mode::Init };
+        initial_state.initialize_quiz();
+        state.states.insert(channel_id, initial_state);
+    };
+
+    let bot_state = state.states.get(&channel_id).unwrap();
     msg.channel_id.say(&ctx.http, "Quiz を始めます。").await?;
-    let current_state = &state.lock().await;
+    let current_state = bot_state;
     match &current_state.mode {
         Mode::WaitingUserAnswer(state) => {
             let cursor = &state.cursor;
@@ -230,12 +270,12 @@ async fn main() {
         .configure(|c| c.case_insensitivity(true))
         .group(&GENERAL_GROUP);
 
-    let initial_state = BotState::new();
+    let initial_state = AllBotState::new();
 
     let mut client = Client::builder(&token)
         .event_handler(Handler)
         .framework(framework)
-        .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state))) // new!
+        .type_map_insert::<AllBotState>(Arc::new(Mutex::new(initial_state))) // new!
         .await
         .expect("Failed to build client");
 
