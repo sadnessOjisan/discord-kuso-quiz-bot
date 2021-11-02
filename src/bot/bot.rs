@@ -1,8 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
+use tokio::sync::mpsc::Sender;
 
 // Q: TypeMapKey は他の定義もあるけどこれでいいのか？
 use serenity::{
-    futures::{channel::mpsc::Sender, lock::Mutex},
+    futures::{lock::Mutex},
     model::id::ChannelId,
     prelude::TypeMapKey,
 };

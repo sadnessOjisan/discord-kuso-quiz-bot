@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use serenity::async_trait;
 use serenity::client::{Context, EventHandler};
-use serenity::futures::channel::mpsc::{self, Sender};
 use serenity::model::channel::Message;
 use serenity::model::id::ChannelId;
 use serenity::model::prelude::Ready;
+use tokio::sync::mpsc;
 
 use crate::bot::BotState;
 
@@ -20,6 +20,7 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
+        use serenity::futures::SinkExt;
         if msg.author.name == "kuso-quiz" {
             return;
         }
@@ -31,10 +32,11 @@ impl EventHandler for Handler {
                 .expect("Failed to retrieve map!")
                 .lock()
                 .await;
-            let channel_sender_pair = bot_state.channel_sender_pair.get(&channel_id);
-            if channel_sender_pair.is_some() {
+            let target_sender = bot_state.channel_sender_pair.get_mut(&channel_id);
+            if target_sender.is_some() {
                 // すでに登録済み
-                let sender = channel_sender_pair.unwrap();
+                let sender = target_sender.unwrap();
+             let _ =  sender.send("hello from sender".to_string()).await;
                 // TODO: send message
             } else {
                 // まだ登録していない
@@ -43,6 +45,8 @@ impl EventHandler for Handler {
                 tokio::spawn(async move {
                     loop {
                         // TODO: receive message
+                        let msg = rx.recv().await;
+                        println!("received: {:?}", msg);
                     }
                 });
             };
