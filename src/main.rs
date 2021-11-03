@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use discord_kuso_quiz_bot::{bot::BotState, handler::Handler};
 use dotenv::dotenv;
-use serenity::prelude::*;
+use serenity::{futures::lock::Mutex, prelude::*};
 
 #[tokio::main]
 async fn main() {
@@ -14,7 +14,7 @@ async fn main() {
     };
 
     let mut client = Client::builder(&token)
-        .event_handler(Handler)
+        .event_handler(Handler {channel_sender_pair: HashMap::new()})
         .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state)))
         .await
         .expect("Failed to build client");

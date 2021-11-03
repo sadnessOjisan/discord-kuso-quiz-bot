@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 
 use serenity::async_trait;
 use serenity::client::{Context, EventHandler};
+use serenity::futures::channel::mpsc::Sender;
 use serenity::model::channel::Message;
 use serenity::model::id::ChannelId;
 use serenity::model::prelude::Ready;
@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 use crate::bot::BotState;
 
 pub struct Handler {
-    channel_sender_pair: HashMap<ChannelId, Sender<String>>,
+    pub channel_sender_pair: HashMap<ChannelId, Sender<String>>,
 }
 
 #[async_trait]
@@ -41,7 +41,7 @@ impl EventHandler for Handler {
                 // TODO: send message
             } else {
                 // まだ登録していない
-                let (tx, rx) = mpsc::channel(32);
+                let (tx,mut rx) = mpsc::channel(32);
                 bot_state.channel_sender_pair.insert(channel_id, tx);
                 tokio::spawn(async move {
                     loop {
