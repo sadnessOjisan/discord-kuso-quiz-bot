@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use serenity::async_trait;
 use serenity::client::{Context, EventHandler};
@@ -17,7 +18,7 @@ pub struct Handler {
 impl EventHandler for Handler {
     async fn ready(&self, _: Context, ready: Ready) {
         println!("Bot ready with username {}", ready.user.name);
-    }
+    }   
 
     async fn message(&self, ctx: Context, msg: Message) {
         use serenity::futures::SinkExt;
