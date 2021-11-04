@@ -1,3 +1,3 @@
-pub mod bot;
+pub mod bot_impl;
 
-pub use bot::*;
+pub use bot_impl::*;
