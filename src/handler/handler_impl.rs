@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use tokio::sync::mpsc;
 
 use crate::bot::BotState;
-use crate::quiz::State;
+use crate::quiz::Quiz;
 
 pub struct Handler;
 
@@ -35,17 +35,20 @@ impl EventHandler for Handler {
 
                         // global 環境に sender を登録し、外側の環境から msg 待ち受けloopにユーザーの回答を送る
                         tokio::spawn(async move {
-                            let mut state = State::new();
-                            let question = state.next_question().unwrap();
-                            let _ = msg.channel_id.say(&ctx.http, &question.content).await;
+                            let mut quiz = Quiz::new();
+                            let mut quiz_iter = quiz.iter_mut();
+                            let _ = msg
+                                .channel_id
+                                .say(&ctx.http, &quiz_iter.next().unwrap().content)
+                                .await;
                             loop {
                                 if let Some(user_message) = rx.recv().await {
-                                    let response = state.check_user_answer(&user_message);
+                                    let response = quiz_iter.check(&user_message);
                                     let _ = msg.channel_id.say(&ctx.http, response).await;
-                                    if let Some(next) = state.next_question() {
+                                    if let Some(next) = quiz_iter.next() {
                                         let _ = msg.channel_id.say(&ctx.http, &next.content).await;
                                     } else {
-                                        let (num, ans) = state.summary_result();
+                                        let (num, ans) = quiz_iter.summary_result();
                                         let response = format!("{}問中{}問正解です。", num, ans);
                                         let _ = msg.channel_id.say(&ctx.http, response).await;
                                     }

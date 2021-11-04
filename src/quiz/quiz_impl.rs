@@ -1,176 +1,81 @@
-use std::collections::HashSet;
+use indexmap::{indexmap, indexset, IndexMap, IndexSet};
 
 // (問題数、正答数)
 type Summary = (usize, usize);
 
-type QuestionID = i8;
 #[derive(Debug, Clone)]
 pub struct Question {
-    id: QuestionID,
     pub content: String,
     pub answer: String,
 }
-#[derive(Debug, Clone)]
-pub enum Mode {
-    Init,
-    WaitingUserAnswer(State),
-    Finish(State),
-    Error,
-}
 
 #[derive(Debug, Clone)]
-pub struct QuizState {
-    pub mode: Mode,
+pub struct Quiz {
+    questions: IndexMap<usize, Question>,
 }
 
-impl Default for QuizState {
+impl Default for Quiz {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl QuizState {
-    pub fn new() -> QuizState {
-        QuizState { mode: Mode::Init }
-    }
-
-    pub fn initialize_quiz(&mut self) {
-        let questions = vec![
-            Question {
-                id: 1,
-                content: "test".to_string(),
-                answer: "hoge".to_string(),
-            },
-            Question {
-                id: 2,
-                content: "test2".to_string(),
-                answer: "hoge2".to_string(),
-            },
-        ];
-        let cursor = 0;
-        let result = HashSet::new();
-        self.mode = Mode::WaitingUserAnswer(State {
-            questions,
-            cursor,
-            result,
-        })
-    }
-
-    fn next_quiz(&mut self) {
-        match &self.mode {
-            Mode::WaitingUserAnswer(state) => {
-                let next_cursor = state.cursor + 1;
-                let next_state = State {
-                    cursor: next_cursor,
-                    questions: state.questions.clone(), // Q: string は copy できないから clone するは正しいか
-                    result: state.result.clone(),
-                };
-                // Q: into できなかった
-                if next_cursor as usize == state.questions.len() {
-                    self.mode = Mode::Finish(next_state);
-                } else {
-                    self.mode = Mode::WaitingUserAnswer(next_state);
-                }
-            }
-            _ => {
-                self.mode = Mode::Error;
-            }
-        }
-    }
-
-    fn update_result(&mut self, result: HashSet<QuestionID>) {
-        match &self.mode {
-            Mode::WaitingUserAnswer(state) => {
-                let next_state = State {
-                    cursor: state.cursor,
-                    questions: state.questions.clone(),
-                    result,
-                };
-                self.mode = Mode::WaitingUserAnswer(next_state)
-            }
-            _ => {
-                self.mode = Mode::Error;
-            }
-        }
-    }
-
-    pub fn user_answer(&mut self, answer: String) -> Option<bool> {
-        match &self.mode {
-            Mode::WaitingUserAnswer(state) => {
-                let current_quiz = state.questions[state.cursor as usize].clone();
-                let current_q_answer = current_quiz.answer;
-                let is_correct = current_q_answer == answer;
-                let mut current_result = state.result.clone();
-                if is_correct {
-                    current_result.insert(current_quiz.id);
-                }
-                // Q: この中から直接state.resultに上書きたい
-                self.update_result(current_result);
-                self.next_quiz();
-                Some(is_correct)
-            }
-            _ => {
-                self.mode = Mode::Error;
-                None
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct State {
-    pub questions: Vec<Question>,
-    pub result: HashSet<QuestionID>,
-    pub cursor: usize,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-impl State {
+impl Quiz {
     pub fn new() -> Self {
-        State {
-            questions: vec![
-                Question {
-                    id: 1,
+        Self {
+            questions: indexmap! {
+                0 => Question {
                     content: "test".to_string(),
                     answer: "hoge".to_string(),
                 },
-                Question {
-                    id: 2,
+                1 => Question {
                     content: "test2".to_string(),
                     answer: "hoge2".to_string(),
                 },
-            ],
-            result: HashSet::new(),
-            cursor: 0,
+
+            },
         }
     }
 
-    pub fn check_user_answer(&mut self, answer: &str) -> &'static str {
-        let current_question = &self.questions[self.cursor as usize];
-        let target_answer = &current_question.answer;
-        // Q: 参照同士の比較でも大丈夫？
-        let is_correct = *target_answer == *answer;
-        if is_correct {
-            self.result.insert(current_question.id);
+    pub fn iter_mut(&mut self) -> QuizIterator<'_> {
+        QuizIterator {
+            quiz: self,
+            cursor: 0,
+            summary: indexset! {},
         }
-        if is_correct {
+    }
+}
+
+pub struct QuizIterator<'a> {
+    quiz: &'a Quiz,
+    cursor: usize,
+    summary: IndexSet<usize>,
+}
+
+impl QuizIterator<'_> {
+    pub fn check(&mut self, answer: &str) -> &'static str {
+        let current_question = &self.quiz.questions[self.cursor];
+        let target_answer = &current_question.answer;
+        if target_answer == answer {
+            self.summary.insert(self.cursor);
             "正解です。"
         } else {
             "不正解です。"
         }
     }
 
-    pub fn next_question(&mut self) -> Option<&Question> {
-        let next_cursor = self.cursor + 1;
-        self.cursor = next_cursor;
-        (self.questions.len() == (self.cursor + 1)).then(|| &self.questions[(self.cursor - 1)])
-    }
-
     pub fn summary_result(&self) -> Summary {
-        (self.questions.len(), self.result.len())
+        (self.quiz.questions.len(), self.summary.len())
+    }
+}
+
+impl Iterator for QuizIterator<'_> {
+    type Item = Question;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let old_cursor = self.cursor;
+        self.cursor += 1;
+        (self.quiz.questions.len() > old_cursor)
+            .then(|| self.quiz.questions[old_cursor].clone())
     }
 }

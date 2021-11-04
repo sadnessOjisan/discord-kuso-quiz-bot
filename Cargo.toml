@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 dotenv = "0.15.0"
+indexmap = "1.7.0"
 serenity = {version = "0.10.9", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }
 tokio = { version = "1.10.1", features = ["macros", "rt-multi-thread"] } # for `error: The default runtime flavor is `multi_thread`, but the `rt-multi-thread` feature is disabled.``
