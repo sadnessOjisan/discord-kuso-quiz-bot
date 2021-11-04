@@ -15,3 +15,9 @@ cargo +beta run
 ```
 
 and open discord.
+
+## 質問
+
+### String の比較
+
+`PartialEq<String>` is not implemented for `&String` の誤魔化し方
