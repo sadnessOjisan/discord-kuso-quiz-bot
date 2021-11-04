@@ -37,11 +37,14 @@ impl EventHandler for Handler {
         if msg.content == "start" {
             if target_sender.is_some() {
                 // すでに登録済み
+                // "start" という回答をしたと判定
                 let sender = target_sender.unwrap();
-                let _ = sender.send("hello from sender".to_string()).await;
+                let _ = sender.send(msg.content).await; // Q: await つけ忘れたら実行されなかったんだけど、非同期に実行自体はされるのでは？
             } else {
-                // まだ登録していない
+                // まだ登録していないのでスレッドでBotを起動
                 let (tx, mut rx) = mpsc::channel(32);
+
+                // global 環境に sender を登録し、外側の環境から msg 待ち受けloopにユーザーの回答を送る
                 bot_state.channel_sender_pair.insert(channel_id, tx);
                 tokio::spawn(async move {
                     let mut state = State::new();
@@ -61,7 +64,9 @@ impl EventHandler for Handler {
                                 format!("{}問中{}問正解です。", result_summary.0, result_summary.1);
                             let _ = msg.channel_id.say(&ctx.http, result_message).await;
                         } else {
-                            state.next_question()
+                            state.next_question();
+                            let question = state.get_current_question();
+                            let _ = msg.channel_id.say(&ctx.http, &question.content).await;
                         }
                     }
                 });

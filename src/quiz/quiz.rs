@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 // (問題数、正答数)
 type Summary = (usize, usize);
@@ -161,7 +161,7 @@ impl State {
 
     pub fn is_last(&self) -> bool {
         // Q: into すると `type annotations needed cannot satisfy `usize: PartialEq<_>` と怒られるのどうにかしたい。
-        self.questions.len() == self.cursor as usize
+        self.questions.len() == (self.cursor + 1) as usize
     }
 
     pub fn summary_result(&self) -> Summary {
