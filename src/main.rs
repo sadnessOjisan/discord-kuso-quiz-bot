@@ -10,7 +10,7 @@ async fn main() {
     let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
 
     let mut client = Client::builder(&token)
-        .event_handler(Handler::default())
+        .event_handler(Handler)
         .type_map_insert::<BotState>(Arc::new(Mutex::new(BotState::default())))
         .await
         .expect("Failed to build client");

@@ -1,18 +1,15 @@
 use serenity::{
     async_trait,
     client::{Context, EventHandler},
-    model::{channel::Message, id::ChannelId, prelude::Ready},
+    model::{channel::Message, prelude::Ready},
 };
-use std::{borrow::Cow, collections::HashMap};
+use std::borrow::Cow;
 use tokio::sync::mpsc;
 
 use crate::bot::BotState;
 use crate::quiz::State;
 
-#[derive(Default)]
-pub struct Handler {
-    pub channel_sender_pair: HashMap<ChannelId, mpsc::Sender<String>>,
-}
+pub struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
