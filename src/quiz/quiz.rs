@@ -138,7 +138,7 @@ impl State {
             cursor: 0,
         }
     }
-    
+
     pub fn get_current_question(&self) -> &Question {
         &self.questions[self.cursor as usize]
     }

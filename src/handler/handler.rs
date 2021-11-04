@@ -25,15 +25,16 @@ impl EventHandler for Handler {
         if msg.author.name == "kuso-quiz" {
             return;
         }
+        let channel_id = msg.channel_id;
+        let mut rw_lock = ctx.data.write().await;
+        let mut bot_state = rw_lock
+            .get_mut::<BotState>()
+            .expect("Failed to retrieve map!")
+            .lock()
+            .await;
+        let target_sender = bot_state.channel_sender_pair.get_mut(&channel_id);
+
         if msg.content == "start" {
-            let channel_id = msg.channel_id;
-            let mut rw_lock = ctx.data.write().await;
-            let mut bot_state = rw_lock
-                .get_mut::<BotState>()
-                .expect("Failed to retrieve map!")
-                .lock()
-                .await;
-            let target_sender = bot_state.channel_sender_pair.get_mut(&channel_id);
             if target_sender.is_some() {
                 // すでに登録済み
                 let sender = target_sender.unwrap();
@@ -45,8 +46,7 @@ impl EventHandler for Handler {
                 tokio::spawn(async move {
                     let mut state = State::new();
                     let question = state.get_current_question();
-                  let res =  msg.channel_id.say(&ctx.http, &question.content).await;
-                  println!("{:?}", res);
+                    let _ = msg.channel_id.say(&ctx.http, &question.content).await;
                     loop {
                         let user_message = rx.recv().await.expect("fail to receive message");
                         let is_correct = state.check_user_answer(&user_message);
@@ -66,6 +66,10 @@ impl EventHandler for Handler {
                     }
                 });
             };
+        } else {
+            // TODO: 初期化前にこっちのブロックに来たら追い返す
+            let sender = target_sender.unwrap();
+            let _ = sender.send(msg.content).await;
         }
     }
 }
