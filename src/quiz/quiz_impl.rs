@@ -23,6 +23,12 @@ pub struct QuizState {
     pub mode: Mode,
 }
 
+impl Default for QuizState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QuizState {
     pub fn new() -> QuizState {
         QuizState { mode: Mode::Init }
@@ -62,7 +68,6 @@ impl QuizState {
                 // Q: into できなかった
                 if next_cursor as usize == state.questions.len() {
                     self.mode = Mode::Finish(next_state);
-                    return;
                 } else {
                     self.mode = Mode::WaitingUserAnswer(next_state);
                 }
@@ -116,9 +121,14 @@ impl QuizState {
 pub struct State {
     pub questions: Vec<Question>,
     pub result: HashSet<QuestionID>,
-    pub cursor: u8,
+    pub cursor: usize,
 }
 
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl State {
     pub fn new() -> Self {
         State {
@@ -139,29 +149,25 @@ impl State {
         }
     }
 
-    pub fn get_current_question(&self) -> &Question {
-        &self.questions[self.cursor as usize]
-    }
-
-    pub fn check_user_answer(&mut self, answer: &String) -> bool {
+    pub fn check_user_answer(&mut self, answer: &str) -> &'static str {
         let current_question = &self.questions[self.cursor as usize];
         let target_answer = &current_question.answer;
         // Q: 参照同士の比較でも大丈夫？
-        let is_correct = target_answer.to_string() == answer.to_string();
+        let is_correct = *target_answer == *answer;
         if is_correct {
             self.result.insert(current_question.id);
         }
-        is_correct
+        if is_correct {
+            "正解です。"
+        } else {
+            "不正解です。"
+        }
     }
 
-    pub fn next_question(&mut self) -> () {
+    pub fn next_question(&mut self) -> Option<&Question> {
         let next_cursor = self.cursor + 1;
         self.cursor = next_cursor;
-    }
-
-    pub fn is_last(&self) -> bool {
-        // Q: into すると `type annotations needed cannot satisfy `usize: PartialEq<_>` と怒られるのどうにかしたい。
-        self.questions.len() == (self.cursor + 1) as usize
+        (self.questions.len() == (self.cursor + 1)).then(|| &self.questions[(self.cursor - 1)])
     }
 
     pub fn summary_result(&self) -> Summary {

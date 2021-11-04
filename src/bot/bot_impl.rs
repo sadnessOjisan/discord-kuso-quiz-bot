@@ -6,7 +6,7 @@ use serenity::{futures::lock::Mutex, model::id::ChannelId, prelude::TypeMapKey};
 
 #[derive(Default)]
 pub struct BotState {
-    pub channel_sender_pair: HashMap<ChannelId, Sender<String>>,
+    pub channel_sender_pair: HashMap<ChannelId, Sender<Cow<'static, str>>>,
 }
 
 impl TypeMapKey for BotState {
