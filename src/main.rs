@@ -14,7 +14,9 @@ async fn main() {
     };
 
     let mut client = Client::builder(&token)
-        .event_handler(Handler {channel_sender_pair: HashMap::new()})
+        .event_handler(Handler {
+            channel_sender_pair: HashMap::new(),
+        })
         .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state)))
         .await
         .expect("Failed to build client");

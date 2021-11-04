@@ -1,9 +1,7 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::HashSet;
 
-use serenity::{futures::lock::Mutex, model::id::ChannelId, prelude::TypeMapKey};
+// (問題数、正答数)
+type Summary = (usize, usize);
 
 type QuestionID = i8;
 #[derive(Debug, Clone)]
@@ -21,29 +19,13 @@ pub enum Mode {
 }
 
 #[derive(Debug, Clone)]
-pub struct BotState {
+pub struct QuizState {
     pub mode: Mode,
 }
 
-pub struct AllBotState {
-    pub states: HashMap<ChannelId, BotState>,
-}
-
-impl TypeMapKey for AllBotState {
-    type Value = Arc<Mutex<AllBotState>>;
-}
-
-impl AllBotState {
-    pub fn new() -> AllBotState {
-        AllBotState {
-            states: HashMap::new(),
-        }
-    }
-}
-
-impl BotState {
-    pub fn new() -> BotState {
-        BotState { mode: Mode::Init }
+impl QuizState {
+    pub fn new() -> QuizState {
+        QuizState { mode: Mode::Init }
     }
 
     pub fn initialize_quiz(&mut self) {
@@ -135,4 +117,54 @@ pub struct State {
     pub questions: Vec<Question>,
     pub result: HashSet<QuestionID>,
     pub cursor: u8,
+}
+
+impl State {
+    pub fn new() -> Self {
+        State {
+            questions: vec![
+                Question {
+                    id: 1,
+                    content: "test".to_string(),
+                    answer: "hoge".to_string(),
+                },
+                Question {
+                    id: 2,
+                    content: "test2".to_string(),
+                    answer: "hoge2".to_string(),
+                },
+            ],
+            result: HashSet::new(),
+            cursor: 0,
+        }
+    }
+
+    pub fn get_current_question(&self) -> &Question {
+        &self.questions[self.cursor as usize]
+    }
+
+    pub fn check_user_answer(&mut self, answer: &String) -> bool {
+        let current_question = &self.questions[self.cursor as usize];
+        let target_answer = &current_question.answer;
+        // Q: 参照同士の比較でも大丈夫？
+        let is_correct = target_answer.to_string() == answer.to_string();
+        if is_correct {
+            self.result.insert(current_question.id);
+        }
+        is_correct
+    }
+
+    pub fn next_question(&mut self) -> () {
+        let next_cursor = self.cursor + 1;
+        self.cursor = next_cursor;
+    }
+
+    pub fn is_last(&self) -> bool {
+        // Q: into すると `type annotations needed cannot satisfy `usize: PartialEq<_>` と怒られるのどうにかしたい。
+        self.questions.len() == (self.cursor + 1) as usize
+    }
+
+    pub fn summary_result(&self) -> Summary {
+        (self.questions.len(), self.result.len())
+    }
 }
