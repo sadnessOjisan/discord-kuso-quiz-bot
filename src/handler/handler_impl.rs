@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 use crate::bot::BotState;
 use crate::quiz::State;
 
+#[derive(Default)]
 pub struct Handler {
     pub channel_sender_pair: HashMap<ChannelId, Sender<String>>,
 }

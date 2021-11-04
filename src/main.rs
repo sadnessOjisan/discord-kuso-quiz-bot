@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use discord_kuso_quiz_bot::{bot::BotState, handler::Handler};
 use dotenv::dotenv;
@@ -9,15 +9,9 @@ async fn main() {
     dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN to be set!");
 
-    let initial_state = BotState {
-        channel_sender_pair: HashMap::new(),
-    };
-
     let mut client = Client::builder(&token)
-        .event_handler(Handler {
-            channel_sender_pair: HashMap::new(),
-        })
-        .type_map_insert::<BotState>(Arc::new(Mutex::new(initial_state)))
+        .event_handler(Handler::default())
+        .type_map_insert::<BotState>(Arc::new(Mutex::new(BotState::default())))
         .await
         .expect("Failed to build client");
 
