@@ -1,3 +1,3 @@
-pub mod quiz;
+pub mod quiz_impl;
 
-use quiz::*;
+pub use quiz_impl::*;
