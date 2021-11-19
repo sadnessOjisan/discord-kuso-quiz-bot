@@ -150,6 +150,7 @@ name = "discord-kuso-quiz-bot"
 version = "0.1.0"
 dependencies = [
  "dotenv",
+ "indexmap",
  "serenity",
  "tokio",
 ]
